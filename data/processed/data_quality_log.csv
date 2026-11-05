@@ -1,0 +1,11 @@
+table,issue,action,rows_affected
+customers,gender coded as M/F,mapped to Male/Female,600
+customers,years_employed > age - 16,capped at age - 16 + capped flag,726
+customers,years_employed missing,filled with employment-type median + missing flag,500
+customers,num_dependents missing,filled with employment-type median + missing flag,500
+customers,years_at_residence missing,filled with employment-type median + missing flag,500
+loan_accounts,interest_rate_pct missing,filled with loan-type median + missing flag,294
+bureau_credit,date_closed missing,kept as null: these are Active lines,11243
+bureau_credit,days_past_due missing,"left null in max/mean, counted per customer",689
+joined,loan origination before customer_since,customer_since not used as a model feature,7293
+joined,loan with no bureau record,bureau features set to 0 + no-history flag,1462

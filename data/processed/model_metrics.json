@@ -1,0 +1,15 @@
+{
+  "logistic_regression": {
+    "AUC": 0.6625,
+    "KS": 0.2563,
+    "Gini": 0.3249
+  },
+  "xgboost": {
+    "AUC": 0.6611,
+    "KS": 0.2434,
+    "Gini": 0.3223
+  },
+  "train_rows": 11014,
+  "test_rows": 3671,
+  "split": "StratifiedGroupKFold by customer_id, 75/25"
+}

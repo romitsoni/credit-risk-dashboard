@@ -1,0 +1,37 @@
+{
+  "kpis": {
+    "accounts": 14685,
+    "customers": 10000,
+    "total_exposure": 601119531.64,
+    "default_rate": 0.1609805924412666,
+    "avg_pd": 0.16072406296622405,
+    "high_risk_exposure_share": 0.3939539658841487
+  },
+  "insights": [
+    {
+      "title": "Mortgages are the riskiest AND the biggest book",
+      "finding": "Mortgages default at 24.7% vs 16.1% portfolio average, and hold 52% of total exposure.",
+      "so_what": "Secured loans should be safer. Review mortgage underwriting first: this is where most of the money is at risk."
+    },
+    {
+      "title": "Default falls steadily as income rises",
+      "finding": "Lowest income band defaults at 24.6%, highest at 9.7%.",
+      "so_what": "Income is the strongest single driver. Use loan-to-income limits, and verify income more strictly for the lowest band."
+    },
+    {
+      "title": "Age matters a lot; region barely matters",
+      "finding": "Under-30s default at 21.6% vs 6.8% for 60+. Regions only range 15.0%-16.9%.",
+      "so_what": "Focus risk rules on borrower profile, not geography. Regional pricing would add little."
+    },
+    {
+      "title": "Unemployed borrowers are a very high-risk group",
+      "finding": "Unemployed borrowers default at 35.0%, 2.2x the portfolio average.",
+      "so_what": "Require proof of other income or collateral before lending to this group."
+    },
+    {
+      "title": "Cross-cut: income x employment",
+      "finding": "Low-income contract workers default at 27.6%, but only 12.0% one band up. Unemployed borrowers stay at 20.0% even in the top income band.",
+      "so_what": "For contract workers, income is the key check. For the unemployed, high stated income does not remove the risk."
+    }
+  ]
+}
