@@ -1,38 +1,67 @@
-"""Ask the Portfolio: LLM Q&A grounded in the data, with number verification."""
+"""Ask the Portfolio: plain-English questions answered from the data, every number checked."""
 import pandas as pd
 import streamlit as st
 
 import llm_assistant as llm   # importing this also loads .env
 
 EXAMPLES = [
-    "Which loan type has the highest default rate?",
-    "What is the default rate for unemployed people in the lowest income band?",
-    "How much exposure is in each risk segment?",
+    "Which loan type goes bad most often?",
+    "How often do unemployed people in the lowest income group go bad?",
+    "How much money is in each risk group?",
     "Show the 5 riskiest mortgage accounts",
-    "How many accounts are flagged as anomalies?",
+    "How many accounts show warning signs?",
     "What will the default rate be next year?",
 ]
 QUICK = {
-    "Default rate by loan type": ("profile", {"dim": "loan_type"}),
-    "Default rate by employment type": ("profile", {"dim": "employment_type"}),
-    "Default rate by region": ("profile", {"dim": "region"}),
-    "Default rate by age band": ("profile", {"dim": "age_band"}),
-    "Default rate by income band": ("profile", {"dim": "income_band"}),
-    "Income band x employment type": ("cross", {"row": "income_band", "col": "employment_type"}),
-    "Portfolio KPIs": ("kpis", {}),
-    "Top 10 riskiest accounts": ("top_accounts", {"n": 10}),
-    "Anomaly summary": ("anomalies", {}),
-    "Model performance": ("model_metrics", {}),
+    "Which loan types go bad most often": ("profile", {"dim": "loan_type"}),
+    "Which job types go bad most often": ("profile", {"dim": "employment_type"}),
+    "Which regions go bad most often": ("profile", {"dim": "region"}),
+    "Which age groups go bad most often": ("profile", {"dim": "age_band"}),
+    "Which income groups go bad most often": ("profile", {"dim": "income_band"}),
+    "Income group and job type together": ("cross", {"row": "income_band", "col": "employment_type"}),
+    "Key numbers for the whole book": ("kpis", {}),
+    "The 10 riskiest accounts": ("top_accounts", {"n": 10}),
+    "Accounts with warning signs": ("anomalies", {}),
+    "How good is the risk model": ("model_metrics", {}),
 }
 BADGE = {
-    "verified": ("✅ Verified", "Every number in this answer was checked against the data."),
-    "fallback": ("⚠️ Safe answer", "The AI's wording failed the number check, so this answer "
-                                  "was written directly by code from the data."),
-    "declined": ("🚫 Declined", "The data cannot answer this question."),
-    "direct": ("📐 Direct from data", "Answered by code, without the AI."),
-    "no_key": ("⚪ AI off", "No API key is set."),
-    "error": ("⚪ AI unavailable", "The AI service did not respond."),
+    "verified": ("✅ Checked against our data", "Every number in this answer matches the data."),
+    "fallback": ("⚠️ Rewritten for safety", "The AI's wording had a number we could not "
+                                            "confirm, so this answer was written straight from the data."),
+    "declined": ("🚫 Can't answer from our data", "This question is outside what our data covers."),
+    "direct": ("📐 Straight from the data", "A ready-made report, no AI used."),
+    "no_key": ("⚪ Assistant off", "The AI service is not set up."),
+    "error": ("⚪ Assistant unavailable", "The AI service did not respond. Try again in a minute."),
 }
+TOOL_TEXT = {
+    "kpis": "Key numbers for the loans shown",
+    "profile": "Breakdown by one field",
+    "cross": "Two fields together",
+    "account": "Details of one account",
+    "top_accounts": "Riskiest accounts",
+    "anomalies": "Accounts with warning signs",
+    "model_metrics": "Risk model quality (tested on loans the model never saw)",
+}
+COLUMNS = {
+    "accounts": "Loans", "defaults": "Went bad", "default_rate": "Share that went bad",
+    "exposure": "Money lent", "exposure_share": "Share of money", "account_id": "Account",
+    "loan_type": "Loan type", "loan_amount": "Amount", "pd_score": "Predicted risk",
+    "risk_segment": "Risk group", "employment_type": "Job type", "income_band": "Income group",
+    "age_band": "Age group", "region": "Region", "city_tier": "City tier",
+    "housing_type": "Housing", "education_level": "Education", "disbursal_channel": "Sales channel",
+    "loan_purpose": "Loan purpose",
+}
+PCT_COLS = {"Share that went bad", "Share of money", "Predicted risk"}
+
+
+def friendly_table(t):
+    t = t.rename(columns=COLUMNS).copy()
+    for c in t.columns:
+        if c in PCT_COLS:
+            t[c] = t[c].map(lambda v: f"{v:.1%}")
+        elif c in ("Money lent", "Amount"):
+            t[c] = t[c].map(lambda v: f"{v / 1e6:,.1f}M" if v >= 1e6 else f"{v / 1e3:,.1f}K")
+    return t
 
 
 def show_result(r):
@@ -41,58 +70,63 @@ def show_result(r):
     st.markdown(f"{label} · <small>{why}</small>", unsafe_allow_html=True)
     st.info(r["answer"])
     if r.get("source"):
-        with st.expander(f"Source: {r['source']} (tool `{r['tool']}`, args {r['args']})"):
+        what = TOOL_TEXT.get(r["tool"], r["tool"])
+        detail = ", ".join(str(v).replace("_", " ") for v in (r.get("args") or {}).values())
+        with st.expander(f"Where this answer comes from: {what}" + (f" ({detail})" if detail else "")):
             t = r["table"]
             if isinstance(t, pd.DataFrame):
-                st.dataframe(t, hide_index=True, use_container_width=True)
+                st.dataframe(friendly_table(t), hide_index=True, use_container_width=True)
             else:
                 st.json(t)
             if r.get("unverified_numbers"):
-                st.caption(f"Numbers from the AI that did not match the data: "
-                           f"{r['unverified_numbers']}")
+                st.caption("Numbers in the AI's first draft that did not match the data: "
+                           f"{', '.join(r['unverified_numbers'])}")
 
 
 def render(data, df):
     st.subheader("💬 Ask the Portfolio")
-    st.caption(f"Answers use the current sidebar filters ({len(df):,} loans).")
+    st.caption(f"Ask a question in plain English. Answers cover the loans currently shown "
+               f"({len(df):,}), so the filters on the left apply here too.")
 
-    with st.expander("ℹ️ How this works: trigger, false positive / negative, human review",
-                     expanded=False):
+    with st.expander("ℹ️ How the assistant works, and its limits"):
         st.markdown("""
-**How it works.** (1) The AI reads your question and picks one approved tool, for example
-*default rate by loan type*. It sees **no data** at this step. (2) Python/pandas computes the
-numbers. (3) The AI writes a short answer from that small result table only.
-(4) Code checks that **every number** in the answer exists in the result. If not, the AI text
-is replaced by a code-written answer. Questions the data cannot answer are declined.
+**How it works**
+1. You ask a question.
+2. The AI picks the right report from an approved list (for example *"breakdown by loan type"*).
+   At this step it sees **no customer data**.
+3. Our system works out the numbers from the data.
+4. The AI writes a short answer using only those numbers.
+5. Our system **checks every number** in the answer. If one does not match, the AI's wording
+   is thrown away and a safe answer is written straight from the data.
 
-**What is sent to the LLM (Google Gemini):** your question + the tool list; then the small
-aggregated result table. **No raw customer rows.**
+**What it can answer:** key numbers, breakdowns by one or two fields, one account,
+the riskiest accounts, accounts with warning signs, and how good the risk model is.
+**What it will not answer:** forecasts, other banks, opinions, or anything not in our data.
 
-**Trigger:** an analyst types a question.
+**What is sent to the AI service:** your question, the list of reports, and then one small
+summary table. Never individual customer records.
 
-**False positive:** the assistant answers, but with the wrong tool (e.g. *city tier* when you
-meant *region*). The source box shows exactly which tool and table were used.
-
-**False negative:** it declines a question the data could answer. Rephrase, or use the quick
-questions below.
-
-**Human-in-the-loop:** the analyst checks the badge and the source table before using a number
-in any report or decision.
+| | |
+|---|---|
+| **When it runs** (trigger) | When you ask a question |
+| **Wrong answer risk** (false positive) | It answers, but picks the wrong report, for example city tier when you meant region. The "Where this answer comes from" box always shows which report was used |
+| **Missed answer** (false negative) | It says it can't answer a question our data could answer. Try rewording it, or use a ready-made report |
+| **Your check** (human review) | Check the badge and the source table before using a number in a report or a decision |
 """)
 
     if df.empty:
-        st.warning("No loans match the filters.")
+        st.warning("No loans match these filters.")
         return
     an = data["anomalies"][data["anomalies"]["account_id"].isin(df["account_id"])]
 
     if "qa_history" not in st.session_state:
         st.session_state.qa_history = []
 
-    # ---------- Free-text question ----------
+    # ---------- Ask a question ----------
     if not llm.has_key():
-        st.warning("AI assistant is off: no GEMINI_API_KEY is set. "
-                   "Quick questions below still work, straight from the data.")
-    st.markdown("**Example questions** (click to ask):")
+        st.warning("The AI assistant is not set up right now. The ready-made reports below "
+                   "still work, straight from the data.")
+    st.markdown("**Try one of these:**")
     cols = st.columns(3)
     clicked = None
     for i, q in enumerate(EXAMPLES):
@@ -100,30 +134,31 @@ in any report or decision.
             clicked = q
 
     with st.form("ask_form", clear_on_submit=True):
-        q = st.text_input("Your question", placeholder="e.g. Which region has the lowest default rate?")
+        q = st.text_input("Or type your own question",
+                          placeholder="e.g. Which region has the fewest loans going bad?")
         sent = st.form_submit_button("Ask", type="primary")
     question = clicked or (q.strip() if sent and q.strip() else None)
 
     if question:
-        with st.spinner("Thinking..."):
+        with st.spinner("Working it out..."):
             r = llm.ask(question, df, an, data["metrics"])
         st.session_state.qa_history.insert(0, r)
 
-    # ---------- Quick questions (no AI) ----------
-    with st.expander("📐 Quick questions (no AI, always available)"):
+    # ---------- Ready-made reports ----------
+    with st.expander("📐 Ready-made reports (work even without the AI)"):
         a, b = st.columns([3, 1])
-        pick = a.selectbox("Pick one", list(QUICK), label_visibility="collapsed")
+        pick = a.selectbox("Choose a report", list(QUICK), label_visibility="collapsed")
         if b.button("Show", use_container_width=True):
             tool, args = QUICK[pick]
             r = llm.answer_without_llm(tool, args, df, an, data["metrics"])
             r["question"] = pick
             st.session_state.qa_history.insert(0, r)
 
-    # ---------- History ----------
+    # ---------- Answers ----------
     if st.session_state.qa_history:
         st.markdown("---")
         top = st.columns([4, 1])
-        top[0].markdown("#### Answers (newest first)")
+        top[0].markdown("#### Your answers (newest first)")
         if top[1].button("Clear", use_container_width=True):
             st.session_state.qa_history = []
             st.rerun()

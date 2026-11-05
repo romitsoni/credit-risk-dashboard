@@ -27,7 +27,7 @@ from views import (common, portfolio, account, ask, ask_fab, anomalies,
                    collections, model_monitor)
 
 st.title("📊 Credit Risk Monitor")
-st.caption("Synthetic portfolio · 10,000 customers · 14,685 loans")
+st.caption("Retail lending portfolio · Risk monitoring for the credit risk team")
 
 common.ensure_data()
 data = common.load_data()

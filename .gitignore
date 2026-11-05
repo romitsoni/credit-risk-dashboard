@@ -5,3 +5,5 @@ __pycache__/
 profile.txt
 explore.txt
 data/decisions/
+
+catboost_info/

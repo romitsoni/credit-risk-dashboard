@@ -1,3 +1,4 @@
+# ---- Needed to run the dashboard ----
 google-genai==2.34.0
 numpy==2.5.4
 pandas==3.1.1
@@ -6,3 +7,9 @@ python-dotenv==1.2.4
 scikit-learn==1.9.1
 streamlit==1.66.1
 xgboost==3.4.1
+
+# ---- Only for tests and extra scripts (not used by the live app) ----
+pytest==9.2.0          # tests in tests/
+matplotlib==3.11.2     # README charts: src/make_readme_charts.py
+catboost==1.2.10       # model comparison: src/benchmark_models.py
+lightgbm==4.7.0        # model comparison: src/benchmark_models.py

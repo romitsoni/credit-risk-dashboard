@@ -1,6 +1,7 @@
 """Shared helpers: build data if missing, load data, sidebar filters, formatting."""
 import json
 import os
+import re
 import pandas as pd
 import streamlit as st
 
@@ -46,7 +47,8 @@ def load_data():
 
 def sidebar_filters(df):
     st.sidebar.header("Filters")
-    st.sidebar.caption("Empty = all. Applies to Portfolio, Account and Anomaly views.")
+    st.sidebar.caption("Empty = all loans. Applies to every tab except Model & Monitoring, "
+                       "which always uses all test loans.")
     out = df
     for col, label in [("loan_type", "Loan type"), ("region", "Region"),
                        ("employment_type", "Employment type"),
@@ -81,3 +83,82 @@ def show_table(t):
     if "exposure" in d.columns:
         d["exposure"] = d["exposure"].map(money)
     st.dataframe(d, hide_index=True, use_container_width=True)
+
+
+# ---------- Plain-English risk reasons ----------
+
+
+def _yrs(v):
+    if v == 0:
+        return "0 years"
+    return f"{v * 12:.0f} months" if v < 1 else f"{v:.1f} years"
+
+
+def _days(v):
+    return f"{v:.0f} days"
+
+
+# feature: (which side is risky, short phrase with {v} = this customer's value, formatter)
+REASON_TEXT = {
+    "annual_income": ("low", "Low income ({v})", lambda v: money(v)),
+    "years_employed": ("low", "New in job ({v})", _yrs),
+    "age": ("low", "Young ({v})", lambda v: f"{v:.0f}"),
+    "years_at_residence": ("low", "New at address ({v})", _yrs),
+    "rep_mean_dpd": ("high", "Pays us late (avg {v})", _days),
+    "rep_max_dpd": ("high", "Was very late with us (up to {v})", _days),
+    "rep_late": ("high", "Late with us in {v} months", lambda v: f"{v:.0f}"),
+    "rep_last_balance": ("high", "Still owes a lot ({v})", lambda v: money(v)),
+    "bur_mean_dpd": ("high", "Pays other banks late (avg {v})", _days),
+    "bur_max_dpd": ("high", "Was very late at other banks (up to {v})", _days),
+    "bur_active": ("high", "Many loans elsewhere ({v})", lambda v: f"{v:.0f}"),
+    "bur_writeoffs": ("high", "Unpaid loans at other banks ({v})", lambda v: f"{v:.0f}"),
+    "bur_utilization": ("high", "Uses most of credit elsewhere ({v})", lambda v: f"{v:.0%}"),
+    "loan_to_income": ("high", "Big loan for income ({v})", lambda v: f"{v:.1f}x"),
+    "loan_amount": ("high", "Large loan ({v})", lambda v: money(v)),
+    "interest_rate_pct": ("high", "High interest rate ({v})", lambda v: f"{v:.1f}%"),
+}
+
+
+@st.cache_data
+def typical_values(_scored):
+    cols = [c for c in REASON_TEXT if c in _scored.columns]
+    return _scored[cols].median(numeric_only=True).to_dict()
+
+
+def typical_text(typical):
+    """One line describing a typical customer, shown once above the table."""
+    parts = []
+    if "annual_income" in typical:
+        parts.append(f"income {money(typical['annual_income'])}")
+    if "years_employed" in typical:
+        parts.append(f"{_yrs(typical['years_employed'])} in job")
+    if "rep_mean_dpd" in typical:
+        d = typical["rep_mean_dpd"]
+        parts.append("pays us on time" if d < 1 else f"pays us {d:.0f} days late on average")
+    if "loan_to_income" in typical:
+        parts.append(f"loan {typical['loan_to_income']:.1f}x income")
+    return ", ".join(parts)
+
+
+def risk_reasons(row, typical, n=3):
+    """Turn 'annual_income (+0.35); rep_mean_dpd (+0.33)' into short plain phrases,
+    biggest reason first. Only shows a reason when the value is on the risky side."""
+    found = []
+    for name, val in re.findall(r"([A-Za-z_]+)\s*\(([+-]?[\d.]+)\)", str(row.get("top_drivers", ""))):
+        if float(val) > 0:
+            found.append((float(val), name))
+    out = []
+    for _, name in sorted(found, reverse=True):
+        if name not in REASON_TEXT:
+            continue
+        risky_side, phrase, fmt = REASON_TEXT[name]
+        v, t = row.get(name), typical.get(name)
+        if v is None or t is None or pd.isna(v):
+            continue
+        side = "high" if v > t else ("low" if v < t else None)
+        if side != risky_side:
+            continue  # value is on the safe side: not a clear reason
+        out.append(phrase.format(v=fmt(v)))
+        if len(out) == n:
+            break
+    return " · ".join(out) if out else "No single strong reason"
