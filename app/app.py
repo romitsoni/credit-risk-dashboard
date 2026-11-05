@@ -23,7 +23,8 @@ try:
 except Exception:
     pass  # no secrets file locally: .env is used instead
 
-from views import common, portfolio, account, ask, anomalies, collections, model_monitor
+from views import (common, portfolio, account, ask, ask_fab, anomalies,
+                   collections, model_monitor)
 
 st.title("📊 Credit Risk Monitor")
 st.caption("Synthetic portfolio · 10,000 customers · 14,685 loans")
@@ -31,6 +32,8 @@ st.caption("Synthetic portfolio · 10,000 customers · 14,685 loans")
 common.ensure_data()
 data = common.load_data()
 fdf = common.sidebar_filters(data["scored"])
+
+ask_fab.render(data, fdf)   # floating "Ask the Portfolio" button on every tab
 
 tabs = st.tabs(["📊 Portfolio", "🔎 Account", "💬 Ask the Portfolio",
                 "🚩 Anomaly Review", "💰 Collections", "📈 Model & Monitoring"])
