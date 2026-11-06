@@ -28,7 +28,7 @@ def render(data, df):
         st.markdown("""
 - **Went bad** means the customer stopped paying (a default).
 - **Predicted risk** is the model's estimate, from 0% to 100%, of how likely a loan is to go bad.
-- **Risk groups** sort loans by predicted risk: Low, Medium, High and Very High.
+- **Risk groups** sort loans by predicted risk: **Low** under 10%, **Medium** 10% to 20%, **High** 20% to 35%, **Very High** over 35%.
 - **Money lent** is the original amount of the loans.
 - Everything on this page follows the filters on the left.
 """)
@@ -40,20 +40,32 @@ def render(data, df):
     st.info(f"**{pct(k['high_risk_exposure_share'])} of the money** is in high-risk loans. "
             f"**{worst['loan_type']}** loans go bad most often ({pct(worst['default_rate'])}).")
 
-    c = st.columns(5)
+    c = st.columns(4)
     c[0].metric("Loans", f"{k['accounts']:,}", help=f"Held by {k['customers']:,} customers")
     c[1].metric("Money lent", money(k["total_exposure"]),
                 help="Total of the original loan amounts")
     c[2].metric("Loans that went bad", pct(k["default_rate"]),
                 help="Share of loans where the customer stopped paying")
-    c[3].metric("Predicted risk (average)", pct(k["avg_pd"]),
-                help="The model's average estimate. Close to the real figure means the model is well tuned")
-    c[4].metric("Money in high-risk loans", pct(k["high_risk_exposure_share"]),
+    c[3].metric("Money in high-risk loans", pct(k["high_risk_exposure_share"]),
                 help="Share of the money lent that sits in the High and Very High risk groups")
 
     # ---------- Risk groups ----------
     st.markdown("#### Risk groups")
-    st.caption("  ·  ".join(f"**{g}:** {t}" for g, t in GROUP_TEXT.items()))
+    st.markdown("Each loan is put in a group by its **predicted risk** "
+                "(the model's chance that the loan goes bad):")
+    boxes = st.columns(4)
+    for box, (name, rng, meaning) in zip(boxes, [
+            ("Low", "under 10%", "fewer than 10 in 100 go bad"),
+            ("Medium", "10% to 20%", "10 to 20 in 100 go bad"),
+            ("High", "20% to 35%", "20 to 35 in 100 go bad"),
+            ("Very High", "over 35%", "more than 35 in 100 go bad")]):
+        box.markdown(
+            f"<div style='border-left:6px solid {SEG_COLORS[name]};padding:6px 10px;"
+            f"background:rgba(128,128,128,0.08);border-radius:4px'>"
+            f"<b style='color:{SEG_COLORS[name]}'>{name}</b><br>"
+            f"<span style='font-size:1.15em'><b>{rng}</b></span><br>"
+            f"<small>{meaning}</small></div>", unsafe_allow_html=True)
+    st.caption("The average loan has about a 16% chance of going bad, so Medium is around average.")
     seg = analytics.profile(df, "risk_segment")
     left, right = st.columns(2)
     fig = px.bar(seg, x="risk_segment", y="exposure", color="risk_segment",

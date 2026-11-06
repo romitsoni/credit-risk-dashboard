@@ -273,5 +273,118 @@ def main():
     save(fig, "17_anomalies.png")
 
 
+def extra_charts():
+    """Charts 18-22: feature strength, near-copies, algorithm comparison and feature
+    engineering round 2. The numbers are copied from the reports/ text files
+    (deep_analysis, benchmark_models, feature_engineering_v2), because those
+    experiments take minutes to re-run."""
+    from matplotlib.patches import Patch
+
+    # 18. Feature strength (Information Value) - reports/deep_analysis.txt
+    iv = {"annual_income": .1723, "rep_mean_dpd": .1667, "rep_late": .1246, "rep_max_dpd": .1244,
+          "years_employed": .1169, "rep_missed": .1132, "rep_pay_ratio": .1056, "bur_mean_dpd": .0938,
+          "loan_to_income": .0866, "bur_max_dpd": .0849, "employment_type": .0804,
+          "rep_ever_30dpd": .0779, "age": .0765, "rep_dpd_last3": .0671, "rep_dpd_trend": .0585,
+          "rep_dpd_first3": .0570, "rep_ever_60dpd": .0471, "tenure_months": .0456,
+          "rep_missed_last3": .0421, "loan_amount": .0421, "loan_type": .0415,
+          "rep_last_balance": .0413, "bur_writeoffs": .0236, "education_level": .0180,
+          "bur_has_writeoff": .0150, "years_at_residence": .0080, "interest_rate_pct": .0061,
+          "bur_active": .0061, "bur_lines": .0053, "bur_utilization": .0044, "bur_sanctioned": .0043,
+          "collateral_flag": .0043, "bur_outstanding": .0040, "num_dependents": .0033,
+          "bur_nbfc_fintech_share": .0032, "occupation_sector": .0024, "region": .0020,
+          "loan_purpose": .0019, "disbursal_channel": .0018, "housing_type": .0016,
+          "bur_no_history": .0014, "city_tier": .0009, "customer_loans": .0008}
+    s = pd.Series(iv).sort_values()
+    fig, ax = plt.subplots(figsize=(8, 10))
+    ax.barh(s.index, s.values, color=[GREEN if v >= .1 else (BLUE if v >= .02 else GREY) for v in s])
+    ax.axvline(.02, ls="--", color=GREY)
+    ax.axvline(.1, ls="--", color=GREEN)
+    ax.text(.021, -1.3, "0.02: useful", color="#555")
+    ax.text(.101, -1.3, "0.10: medium", color=GREEN)
+    ax.set_xlabel("Information Value (how well one feature alone separates good and bad loans)")
+    ax.set_title("Feature strength: green = medium, blue = weak, grey = useless", fontweight="bold")
+    save(fig, "18_feature_strength.png")
+
+    # 19. Near-copies (correlation) - reports/deep_analysis.txt
+    pairs = [("rep_missed", "rep_pay_ratio", 1.0), ("loan_amount", "rep_last_balance", .998),
+             ("loan_to_income", "debt_to_income", .958), ("bur_writeoffs", "bur_has_writeoff", .908),
+             ("rep_mean_dpd", "recency_dpd", .902), ("rep_missed", "rep_mean_dpd", .894),
+             ("rep_mean_dpd", "rep_pay_ratio", .894), ("rep_dpd_last3", "rep_missed_last3", .881),
+             ("rep_max_dpd", "rep_ever_30dpd", .874), ("tenure_months", "rep_last_balance", .872),
+             ("rep_max_dpd", "rep_mean_dpd", .872), ("bur_max_dpd", "bur_mean_dpd", .86),
+             ("loan_amount", "tenure_months", .853), ("rep_missed", "rep_ever_30dpd", .853)][::-1]
+    colors = [ORANGE if (a.startswith("rep") and b.startswith(("rep", "rec")))
+              else (BLUE if "bur" in a else RED) for a, b, _ in pairs]
+    fig, ax = plt.subplots(figsize=(8, 5.5))
+    ax.barh([f"{a}  ~  {b}" for a, b, _ in pairs], [v for *_, v in pairs], color=colors)
+    ax.set_xlim(.8, 1.01)
+    ax.set_xlabel("Correlation")
+    ax.set_title("Features that are near copies of each other", fontweight="bold")
+    ax.legend(handles=[Patch(color=ORANGE, label="payment behaviour"), Patch(color=RED, label="loan size"),
+                       Patch(color=BLUE, label="other banks")], loc="lower right")
+    save(fig, "19_correlated_features.png")
+
+    def auc_bars(rows, colour, xlim, xlabel, title, name, ref, width=8):
+        names = [r[0] for r in rows][::-1]
+        aucs = np.array([r[1] for r in rows][::-1])
+        errs = np.array([r[2] for r in rows][::-1])
+        fig, ax = plt.subplots(figsize=(width, 5.5))
+        ax.barh(names, aucs, xerr=errs, color=[colour(n) for n in names], capsize=3)
+        ax.set_xlim(*xlim)
+        ax.axvline(ref, ls="--", color=GREY)
+        ax.set_xlabel(xlabel)
+        ax.set_title(title, fontweight="bold")
+        for i, v in enumerate(aucs):
+            ax.text(v + (xlim[1] - xlim[0]) * 0.22, i, f"{v:.4f}", va="center", fontsize=8.5)
+        save(fig, name)
+
+    # 20. Algorithm comparison - reports/benchmark_models.txt
+    auc_bars([("Average of all models", .6778, .0070), ("Average of LR + XGBoost", .6773, .0073),
+              ("LR, 29 useful features", .6771, .0073), ("XGBoost (dashboard)", .6762, .0065),
+              ("CatBoost", .6759, .0073), ("LightGBM", .6743, .0066),
+              ("HistGradientBoosting", .6740, .0072), ("LR, strong regularization", .6734, .0082),
+              ("LR, all 81 features", .6724, .0083), ("Random Forest", .6707, .0083),
+              ("Extra Trees", .6636, .0070)],
+             lambda n: GREEN if "XGBoost (dash" in n or "29" in n else (GREY if "Extra" in n else BLUE),
+             (.645, .69), "AUC (5-fold cross-validation, split by customer). Lines = fold-to-fold spread",
+             "Every algorithm reaches the same level", "20_algorithm_benchmark.png", .6724)
+
+    # 21. Feature engineering round 2 - reports/feature_engineering_v2.txt
+    auc_bars([("LR, all 81 features", .6734, .0082), ("LR, 29 useful features", .6774, .0073),
+              ("LR, clean scorecard (27)", .6775, .0074),
+              ("LR, clean + other-bank by type/lender (36)", .6781, .0066),
+              ("LR, clean + combined features (32)", .6773, .0073),
+              ("LR, clean + all new features (41)", .6779, .0066),
+              ("XGBoost, all 81 features", .6762, .0065),
+              ("XGBoost + other-bank by type/lender (90)", .6767, .0046),
+              ("XGBoost + all new features (95)", .6773, .0051),
+              ("WoE scorecard, all features (49)", .6686, .0105),
+              ("WoE scorecard, useful features (21)", .6774, .0103)],
+             lambda n: GREEN if "clean scorecard" in n else
+             (ORANGE if "new" in n or "type/lender" in n or "combined" in n else BLUE),
+             (.65, .695), "AUC (5-fold cross-validation). Orange = new features tested",
+             "New features do not beat the noise; 27 columns are enough",
+             "21_feature_engineering_v2.png", .6734, width=8.5)
+
+    # 22. Strength of the new features - reports/feature_engineering_v2.txt
+    nf = {"unemployed x low income": .0744, "unemployed x missed": .0739, "late at fintech/NBFC": .0679,
+          "young x low income": .0648, "mortgage x loan-to-income": .0440, "late at a bank": .0388,
+          "active lines 30+ days late": .0277, "unsecured write-offs": .0244,
+          "share of money written off": .0221, "contract x low income": .0216,
+          "share of lines closed": .0080, "card utilization": .0045, "secured write-offs": .0026,
+          "number of credit types": .0024}
+    s = pd.Series(nf).sort_values()
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.barh(s.index, s.values, color=[BLUE if v >= .02 else GREY for v in s])
+    ax.axvline(.1723, ls="--", color=GREEN)
+    ax.text(.1723, -0.9, " annual income (best existing)", color=GREEN, ha="right")
+    ax.axvline(.02, ls="--", color=GREY)
+    ax.set_xlim(0, .19)
+    ax.set_xlabel("Information Value")
+    ax.set_title("New features are weak next to the best existing one", fontweight="bold")
+    save(fig, "22_new_feature_strength.png")
+
+
 if __name__ == "__main__":
     main()
+    extra_charts()

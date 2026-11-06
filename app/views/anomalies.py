@@ -42,8 +42,12 @@ def plain_reason(text):
 
 
 def load_decisions():
-    if DEC_FILE.exists():
-        return pd.read_csv(DEC_FILE)
+    """Read the decision log. A missing or empty file means no decisions yet."""
+    if DEC_FILE.exists() and DEC_FILE.stat().st_size > 0:
+        try:
+            return pd.read_csv(DEC_FILE)
+        except pd.errors.EmptyDataError:
+            pass
     return pd.DataFrame(columns=DEC_COLS)
 
 
@@ -72,8 +76,11 @@ def render(data, df):
   than 99% of similar customers (same loan type and income group).
 - **Much later at other banks:** it is later on payments at other banks than 99% of
   similar customers.
-- **Unusual mix of behaviour:** a statistical check (Isolation Forest) finds it among the
-  rarest 2% of accounts when payment and other-bank behaviour are looked at together.
+- **Unusual mix of behaviour:** a computer check (Isolation Forest) looks at 8 facts together:
+  with us, average days late, worst delay, months not paid, whether lateness is getting worse,
+  and share of the bill paid; at other banks, share of credit limit used, average days late,
+  and loans written off. It flags the 2 in every 100 customers whose mix is the most different
+  from everyone else.
 
 | | |
 |---|---|
