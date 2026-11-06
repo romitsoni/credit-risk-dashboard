@@ -10,7 +10,8 @@ and what to do about it. It is built on 5 synthetic bank tables (10,000 customer
   person confirm or dismiss each one.
 
 **Live app:** https://credit-risk-monitor-romit.streamlit.app
-**Demo video:** (add link)
+
+**Demo video:** https://www.loom.com/share/8bc455aaf0cf4a05a02217574c66c635
 
 ![Portfolio view](assets/dash_portfolio.png)
 
